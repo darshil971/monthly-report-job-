@@ -15,28 +15,45 @@ def insert_job_status(
     status: str = "IN_PROGRESS",
     report_type: str = "MONTHLY_PDF"
 ):
-    """Insert a new job status record."""
+    """Update existing PENDING row to IN_PROGRESS, or insert if no row exists."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     start_timestamp = f"{start_date} 00:00:00"
     end_timestamp = f"{end_date} 23:59:59"
 
-    query = """
-        INSERT INTO jobs
-            (index_name, start_date, end_date, job_type, status, report_type, created_at, updated_at)
-        VALUES
-            (:index_name, :start_date, :end_date, :job_type, :status, :report_type, :created_at, :updated_at)
-    """
-    params = {
+    base_params = {
         "index_name": index_name,
         "start_date": start_timestamp,
         "end_date": end_timestamp,
         "job_type": "MONTHLY_REPORT",
-        "status": status,
         "report_type": report_type,
-        "created_at": now,
-        "updated_at": now,
     }
-    db_writer_sql_invoker(query, params)
+
+    # Step 1: Update any existing PENDING row (created by admin API on trigger)
+    update_query = """
+        UPDATE jobs
+        SET status = :status, updated_at = :updated_at
+        WHERE index_name = :index_name
+          AND start_date = :start_date
+          AND end_date = :end_date
+          AND report_type = :report_type
+          AND job_type = :job_type
+          AND status = 'PENDING'
+    """
+    db_writer_sql_invoker(update_query, {**base_params, "status": status, "updated_at": now})
+
+    # Step 2: Insert only if no matching row exists (covers direct trigger without admin API)
+    insert_query = """
+        INSERT INTO jobs
+            (index_name, start_date, end_date, job_type, status, report_type, created_at, updated_at)
+        SELECT :index_name, :start_date, :end_date, :job_type, :status, :report_type, :created_at, :updated_at
+        FROM DUAL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM jobs
+            WHERE index_name = :index_name AND start_date = :start_date AND end_date = :end_date
+              AND report_type = :report_type AND job_type = :job_type
+        )
+    """
+    db_writer_sql_invoker(insert_query, {**base_params, "status": status, "created_at": now, "updated_at": now})
 
 
 def update_job_status(
