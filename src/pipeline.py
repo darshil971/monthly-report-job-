@@ -279,16 +279,18 @@ def process_single_client(
     config.setup_client_tmp(client_name)
     json_path = config.get_client_json_path(client_name)
 
+    # Helper to update job status by matching fields (no job ID needed)
+    def _update(report_type: str, status: str):
+        try: update_job_status(client_name, start_date, end_date, report_type, status)
+        except Exception: pass
+
     # Insert job status — one row per report type
-    pdf_job_id = None
-    concern_job_id = None
-    voc_job_id = None
     try:
-        pdf_job_id = insert_job_status(client_name, start_date, end_date, report_type="MONTHLY_PDF")
+        insert_job_status(client_name, start_date, end_date, report_type="MONTHLY_PDF")
         if run_concern and not is_special_client(client_name):
-            concern_job_id = insert_job_status(client_name, start_date, end_date, report_type="CONCERN_HTML")
+            insert_job_status(client_name, start_date, end_date, report_type="CONCERN_HTML")
         if run_theme:
-            voc_job_id = insert_job_status(client_name, start_date, end_date, report_type="VOC_HTML")
+            insert_job_status(client_name, start_date, end_date, report_type="VOC_HTML")
     except Exception as e:
         print(f"[pipeline] Warning: Could not insert job status: {e}")
 
@@ -308,14 +310,10 @@ def process_single_client(
         if pdf_path:
             print(f"\nPDF report generated: {pdf_path}")
             pdf_success = True
-            if pdf_job_id:
-                try: update_job_status(pdf_job_id, "COMPLETED")
-                except Exception: pass
+            _update("MONTHLY_PDF", "COMPLETED")
         else:
             print(f"\nPDF report generation failed for {client_name}")
-            if pdf_job_id:
-                try: update_job_status(pdf_job_id, "FAILED")
-                except Exception: pass
+            _update("MONTHLY_PDF", "FAILED")
 
         # Step 2: Concern clustering (for non-special clients)
         if run_concern and not is_special_client(client_name):
@@ -329,15 +327,11 @@ def process_single_client(
                     vec_outs_dir=config.vec_outs_dir,
                 )
                 print(f"Concern clustering completed for {client_name}")
-                if concern_job_id:
-                    try: update_job_status(concern_job_id, "COMPLETED")
-                    except Exception: pass
+                _update("CONCERN_HTML", "COMPLETED")
             except Exception as e:
                 print(f"Error during concern clustering for {client_name}: {e}")
                 traceback.print_exc()
-                if concern_job_id:
-                    try: update_job_status(concern_job_id, "FAILED")
-                    except Exception: pass
+                _update("CONCERN_HTML", "FAILED")
         elif is_special_client(client_name):
             print(f"\nSkipping concern clustering for special client: {client_name}")
 
@@ -353,15 +347,11 @@ def process_single_client(
                     vec_outs_dir=config.vec_outs_dir,
                 )
                 print(f"Theme clustering completed for {client_name}")
-                if voc_job_id:
-                    try: update_job_status(voc_job_id, "COMPLETED")
-                    except Exception: pass
+                _update("VOC_HTML", "COMPLETED")
             except Exception as e:
                 print(f"Error during theme clustering for {client_name}: {e}")
                 traceback.print_exc()
-                if voc_job_id:
-                    try: update_job_status(voc_job_id, "FAILED")
-                    except Exception: pass
+                _update("VOC_HTML", "FAILED")
 
         # Step 4: Convert HTML reports to old format
         print(f"\nConverting HTML reports to old format for {client_name}...")
@@ -391,11 +381,12 @@ def process_single_client(
         print(f"\nError during analysis for {client_name}: {e}")
         traceback.print_exc()
 
-        # Mark all pending jobs as FAILED
-        for jid in [pdf_job_id, concern_job_id, voc_job_id]:
-            if jid:
-                try: update_job_status(jid, "FAILED")
-                except Exception: pass
+        # Mark all jobs as FAILED
+        _update("MONTHLY_PDF", "FAILED")
+        if run_concern and not is_special_client(client_name):
+            _update("CONCERN_HTML", "FAILED")
+        if run_theme:
+            _update("VOC_HTML", "FAILED")
 
         return False
 
