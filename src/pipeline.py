@@ -33,7 +33,7 @@ from src.config import MonthlyReportJobConfig
 from src.data.firebase_manager import FirebaseAuthManager
 from src.data.raw_data_client import RawDataClient
 from src.report.report_builder import ReportBuilder
-from src.utils.job_status_tracker import insert_job_status, update_job_status
+from src.utils.job_status_tracker import insert_job_status, update_job_status, delete_pending_job
 from src.utils.slack_notification import send_slack_notification
 
 
@@ -289,8 +289,12 @@ def process_single_client(
         insert_job_status(client_name, start_date, end_date, report_type="MONTHLY_PDF")
         if run_concern and not is_special_client(client_name):
             insert_job_status(client_name, start_date, end_date, report_type="CONCERN_HTML")
+        else:
+            delete_pending_job(client_name, start_date, end_date, "CONCERN_HTML")
         if run_theme:
             insert_job_status(client_name, start_date, end_date, report_type="VOC_HTML")
+        else:
+            delete_pending_job(client_name, start_date, end_date, "VOC_HTML")
     except Exception as e:
         print(f"[pipeline] Warning: Could not insert job status: {e}")
 
@@ -334,6 +338,8 @@ def process_single_client(
                 _update("CONCERN_HTML", "FAILED")
         elif is_special_client(client_name):
             print(f"\nSkipping concern clustering for special client: {client_name}")
+            try: delete_pending_job(client_name, start_date, end_date, "CONCERN_HTML")
+            except Exception: pass
 
         # Step 3: Theme clustering (VoC reports)
         if run_theme:

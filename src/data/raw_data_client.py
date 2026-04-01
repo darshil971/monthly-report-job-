@@ -37,7 +37,7 @@ class RawDataClient:
 
         for attempt in range(1, max_retries + 1):
             try:
-                response = requests.post(url, headers=headers, json=payload, timeout=30)
+                response = requests.post(url, headers=headers, json=payload, timeout=180)
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
@@ -169,7 +169,7 @@ class RawDataClient:
                     self._config.analytics_fetch_url,
                     headers=headers,
                     json=payload,
-                    timeout=30
+                    timeout=180
                 )
                 if resp.status_code == 200:
                     return resp.json().get('data', {})

@@ -56,6 +56,34 @@ def insert_job_status(
     db_writer_sql_invoker(insert_query, {**base_params, "status": status, "created_at": now, "updated_at": now})
 
 
+def delete_pending_job(
+    index_name: str,
+    start_date: str,
+    end_date: str,
+    report_type: str,
+):
+    """Delete a PENDING job row that won't be processed (e.g. concern skipped for special clients)."""
+    start_timestamp = f"{start_date} 00:00:00"
+    end_timestamp = f"{end_date} 23:59:59"
+
+    query = """
+        DELETE FROM jobs
+        WHERE index_name = :index_name
+          AND start_date = :start_date
+          AND end_date = :end_date
+          AND report_type = :report_type
+          AND job_type = :job_type
+          AND status = 'PENDING'
+    """
+    db_writer_sql_invoker(query, {
+        "index_name": index_name,
+        "start_date": start_timestamp,
+        "end_date": end_timestamp,
+        "report_type": report_type,
+        "job_type": "MONTHLY_REPORT",
+    })
+
+
 def update_job_status(
     index_name: str,
     start_date: str,
