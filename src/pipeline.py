@@ -279,10 +279,16 @@ def process_single_client(
     config.setup_client_tmp(client_name)
     json_path = config.get_client_json_path(client_name)
 
-    # Insert job status
-    job_id = None
+    # Insert job status — one row per report type
+    pdf_job_id = None
+    concern_job_id = None
+    voc_job_id = None
     try:
-        job_id = insert_job_status(client_name, start_date, end_date, status="IN_PROGRESS")
+        pdf_job_id = insert_job_status(client_name, start_date, end_date, report_type="MONTHLY_PDF")
+        if run_concern and not is_special_client(client_name):
+            concern_job_id = insert_job_status(client_name, start_date, end_date, report_type="CONCERN_HTML")
+        if run_theme:
+            voc_job_id = insert_job_status(client_name, start_date, end_date, report_type="VOC_HTML")
     except Exception as e:
         print(f"[pipeline] Warning: Could not insert job status: {e}")
 
@@ -302,8 +308,14 @@ def process_single_client(
         if pdf_path:
             print(f"\nPDF report generated: {pdf_path}")
             pdf_success = True
+            if pdf_job_id:
+                try: update_job_status(pdf_job_id, "COMPLETED")
+                except Exception: pass
         else:
             print(f"\nPDF report generation failed for {client_name}")
+            if pdf_job_id:
+                try: update_job_status(pdf_job_id, "FAILED")
+                except Exception: pass
 
         # Step 2: Concern clustering (for non-special clients)
         if run_concern and not is_special_client(client_name):
@@ -317,9 +329,15 @@ def process_single_client(
                     vec_outs_dir=config.vec_outs_dir,
                 )
                 print(f"Concern clustering completed for {client_name}")
+                if concern_job_id:
+                    try: update_job_status(concern_job_id, "COMPLETED")
+                    except Exception: pass
             except Exception as e:
                 print(f"Error during concern clustering for {client_name}: {e}")
                 traceback.print_exc()
+                if concern_job_id:
+                    try: update_job_status(concern_job_id, "FAILED")
+                    except Exception: pass
         elif is_special_client(client_name):
             print(f"\nSkipping concern clustering for special client: {client_name}")
 
@@ -335,9 +353,15 @@ def process_single_client(
                     vec_outs_dir=config.vec_outs_dir,
                 )
                 print(f"Theme clustering completed for {client_name}")
+                if voc_job_id:
+                    try: update_job_status(voc_job_id, "COMPLETED")
+                    except Exception: pass
             except Exception as e:
                 print(f"Error during theme clustering for {client_name}: {e}")
                 traceback.print_exc()
+                if voc_job_id:
+                    try: update_job_status(voc_job_id, "FAILED")
+                    except Exception: pass
 
         # Step 4: Convert HTML reports to old format
         print(f"\nConverting HTML reports to old format for {client_name}...")
@@ -345,31 +369,21 @@ def process_single_client(
         print(f"Converted {len(html_reports)} HTML report(s)")
 
         # Step 5: Upload all outputs to GCS (encrypted, bulk_report_uploader pattern)
-        # TODO: Uncomment after manual verification of reports
-        # print(f"\nUploading reports to GCS for {client_name}...")
-        # try:
-        #     from src.utils.storage_service import CloudStorage, upload_client_reports
-        #     storage = CloudStorage(config.storage_bucket_name)
-        #     html_files = _collect_html_reports(client_name, config)
-        #     upload_client_reports(
-        #         storage_service=storage,
-        #         index_name=client_name,
-        #         date_path=date_path,
-        #         html_files=html_files,
-        #         pdf_path=pdf_path,
-        #     )
-        #     print(f"GCS upload completed for {client_name}")
-        # except Exception as e:
-        #     print(f"[pipeline] Warning: GCS upload failed: {e}")
-        #     traceback.print_exc()
-
-        # Update job status
-        if job_id:
-            try:
-                status = "COMPLETED" if pdf_success else "FAILED"
-                update_job_status(job_id, status)
-            except Exception:
-                pass
+        print(f"\nUploading reports to GCS for {client_name}...")
+        try:
+            from src.utils.storage_service import CloudStorage, upload_client_reports
+            storage = CloudStorage(config.storage_bucket_name)
+            upload_client_reports(
+                storage_service=storage,
+                index_name=client_name,
+                date_path=date_path,
+                html_files=html_reports,
+                pdf_path=pdf_path,
+            )
+            print(f"GCS upload completed for {client_name}")
+        except Exception as e:
+            print(f"[pipeline] Warning: GCS upload failed: {e}")
+            traceback.print_exc()
 
         return pdf_success
 
@@ -377,11 +391,11 @@ def process_single_client(
         print(f"\nError during analysis for {client_name}: {e}")
         traceback.print_exc()
 
-        if job_id:
-            try:
-                update_job_status(job_id, "FAILED")
-            except Exception:
-                pass
+        # Mark all pending jobs as FAILED
+        for jid in [pdf_job_id, concern_job_id, voc_job_id]:
+            if jid:
+                try: update_job_status(jid, "FAILED")
+                except Exception: pass
 
         return False
 

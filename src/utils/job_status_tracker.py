@@ -13,7 +13,7 @@ def insert_job_status(
     index_name: str,
     start_date: str,
     end_date: str,
-    status: str = "PENDING",
+    status: str = "IN_PROGRESS",
     report_type: str = "MONTHLY_PDF"
 ) -> Optional[int]:
     """Insert a new job status record. Returns the job ID or None."""

@@ -86,7 +86,7 @@ class MonthlyReportJobConfig:
     # Google Cloud Storage
     storage_bucket_name: str = os.getenv(
         "STORAGE_BUCKET_NAME",
-        "prod_test.verifast.tech"
+        "monthly_reports"
     )
     storage_gcs_prefix: str = os.getenv(
         "STORAGE_GCS_PREFIX",
