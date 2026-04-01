@@ -1,0 +1,61 @@
+[tool.poetry]
+name = "monthly-report-job"
+version = "1.0.0"
+description = "Monthly report generation pipeline for Verifast clients"
+authors = ["Verifast <dev@verifast.tech>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+# Web / HTTP
+requests = "^2.31.0"
+
+# Firebase / GCP
+firebase-admin = "^6.4.0"
+google-cloud-storage = "^2.14.0"
+google-auth = "^2.26.2"
+
+# AI / LLM
+openai = "^1.13.3"
+langchain-openai = "^0.1.0"
+langchain-core = "^0.1.0"
+
+# Data processing
+pandas = "^2.2.2"
+numpy = "^1.24.0"
+openpyxl = "^3.1.5"
+
+# ML / Clustering
+scikit-learn = "^1.3.0"
+umap-learn = "^0.5.4"
+hdbscan = "^0.8.33"
+
+# Theme clustering (BM25 + fuzzy matching)
+rank-bm25 = "^0.2.2"
+rapidfuzz = "^3.0.0"
+
+# Text preprocessing
+ftfy = "^6.0.0"
+Unidecode = "^1.3"
+fasttext = {version = "^0.9.2", optional = true}
+
+# HTTP client
+httpx = "^0.27.0"
+
+# Encryption (for GCS report upload)
+cryptography = "^42.0.0"
+
+# Visualization
+matplotlib = "^3.7.0"
+
+# PDF generation
+playwright = "^1.40.0"
+
+# Utilities
+python-dotenv = "^1.0.0"
+pytz = "^2024.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

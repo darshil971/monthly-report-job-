@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Poetry
+poetry.lock
+
+# Environment
+.env
+*.env
+
+# Firebase credentials
+ecom-review-app-*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Output directories (generated at runtime)
+output/
+new_outputs/
+vec_outs/
+voc_reports/
+concern_reports/
+monthly_report/
+source_data/
+
+# Data files
+*.json
+!schema.sql
+!pyproject.toml
+
+# Model files
+lid.176.bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
