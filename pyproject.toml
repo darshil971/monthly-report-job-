@@ -52,6 +52,10 @@ matplotlib = "^3.7.0"
 # PDF generation
 playwright = "^1.40.0"
 
+# Database (direct DB reads for session data)
+SQLAlchemy = "^2.0.0"
+PyMySQL = "^1.1.0"
+
 # Utilities
 python-dotenv = "^1.0.0"
 pytz = "^2024.1"

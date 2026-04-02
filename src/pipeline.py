@@ -32,6 +32,7 @@ import requests as _requests
 from src.config import MonthlyReportJobConfig
 from src.data.firebase_manager import FirebaseAuthManager
 from src.data.raw_data_client import RawDataClient
+from src.data.db_session_reader import DBSessionReader
 from src.report.report_builder import ReportBuilder
 from src.utils.job_status_tracker import insert_job_status, update_job_status, delete_pending_job
 from src.utils.slack_notification import send_slack_notification
@@ -263,6 +264,7 @@ def process_single_client(
     date_path: str,
     run_concern: bool = True,
     run_theme: bool = True,
+    db_reader: DBSessionReader = None,
 ) -> bool:
     """
     Process a single client: generate PDF report + concern clustering + theme clustering.
@@ -297,6 +299,15 @@ def process_single_client(
             delete_pending_job(client_name, start_date, end_date, "VOC_HTML")
     except Exception as e:
         print(f"[pipeline] Warning: Could not insert job status: {e}")
+
+    # Pre-fetch session data via direct DB (skip slow API day-by-day loop)
+    if db_reader and not os.path.exists(json_path):
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            db_reader.fetch_and_save_session_data(client_name, start_dt, end_dt, json_path)
+        except Exception as e:
+            print(f"[pipeline] DB session fetch failed, will fall back to API: {e}")
 
     pdf_success = False
     pdf_path = None
@@ -457,6 +468,14 @@ def main():
     data_client = RawDataClient(config, jwt_token)
     report_builder = ReportBuilder(config, data_client)
 
+    # Direct DB reader for session data (bypasses slow API)
+    try:
+        db_reader = DBSessionReader.from_env()
+        print("[pipeline] DB session reader initialized — will use direct DB reads")
+    except Exception as e:
+        print(f"[pipeline] DB session reader unavailable, falling back to API: {e}")
+        db_reader = None
+
     # Process clients
     total_clients = len(client_list)
     successful = 0
@@ -476,6 +495,7 @@ def main():
                 date_path=date_path,
                 run_concern=not args.skip_concern,
                 run_theme=True,
+                db_reader=db_reader,
             )
 
             if success:
