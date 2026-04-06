@@ -16,10 +16,26 @@ from src.config import MonthlyReportJobConfig
 class RawDataClient:
     """Handles all API data fetching."""
 
-    def __init__(self, config: MonthlyReportJobConfig, jwt_token: str):
+    def __init__(self, config: MonthlyReportJobConfig, jwt_token: str, auth_manager=None):
         self._config = config
         self._jwt_token = jwt_token
+        self._auth_manager = auth_manager
         self._internal_feedback_cache: Dict[str, list] = {}
+
+    def _refresh_token(self):
+        """Refresh JWT token using the auth manager."""
+        if not self._auth_manager:
+            print("[RawDataClient] No auth manager available — cannot refresh token")
+            return False
+        try:
+            self._jwt_token = self._auth_manager.create_custom_token(
+                self._config.firebase_auth_email, "monthly-report-job"
+            )
+            print("[RawDataClient] JWT token refreshed successfully")
+            return True
+        except Exception as e:
+            print(f"[RawDataClient] Token refresh failed: {e}")
+            return False
 
     def _make_api_request(
         self, payload: dict, endpoint: str = None, url: str = None, max_retries: int = 3
@@ -30,14 +46,17 @@ class RawDataClient:
         if not url and endpoint:
             url = f"{base_url}{endpoint}"
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._jwt_token}"
-        }
-
         for attempt in range(1, max_retries + 1):
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self._jwt_token}"
+            }
             try:
                 response = requests.post(url, headers=headers, json=payload, timeout=180)
+                if response.status_code == 401 and self._refresh_token():
+                    # Retry immediately with the new token
+                    headers["Authorization"] = f"Bearer {self._jwt_token}"
+                    response = requests.post(url, headers=headers, json=payload, timeout=180)
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:

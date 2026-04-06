@@ -421,6 +421,11 @@ def main():
         action="store_true",
         help="Skip concern clustering"
     )
+    parser.add_argument(
+        "--skip-theme",
+        action="store_true",
+        help="Skip theme clustering (VoC reports)"
+    )
     args = parser.parse_args()
 
     # Validate dates
@@ -450,7 +455,7 @@ def main():
     print(f"Period: {args.start_date} to {args.end_date}")
     print(f"Total clients: {len(client_list)}")
     print(f"Concern clustering: {'DISABLED' if args.skip_concern else 'ENABLED'}")
-    print(f"Theme clustering: ENABLED")
+    print(f"Theme clustering: {'DISABLED' if args.skip_theme else 'ENABLED'}")
     print(f"GCS bucket: {config.storage_bucket_name}")
     print("=" * 80 + "\n")
 
@@ -465,7 +470,7 @@ def main():
     print("Initializing Firebase authentication...")
     auth_manager = FirebaseAuthManager(config)
     jwt_token = auth_manager.create_custom_token(config.firebase_auth_email, "monthly-report-job")
-    data_client = RawDataClient(config, jwt_token)
+    data_client = RawDataClient(config, jwt_token, auth_manager=auth_manager)
     report_builder = ReportBuilder(config, data_client)
 
     # Direct DB reader for session data (bypasses slow API)
@@ -494,7 +499,7 @@ def main():
                 report_builder=report_builder,
                 date_path=date_path,
                 run_concern=not args.skip_concern,
-                run_theme=True,
+                run_theme=not args.skip_theme,
                 db_reader=db_reader,
             )
 
